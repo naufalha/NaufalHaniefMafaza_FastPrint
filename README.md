@@ -80,6 +80,9 @@ python manage.py runserver
 ```
 
 ## Struktur Proyek
+
+
+### Direktori Struktur
 ```
 NaufalHaniefMafazaFastPrint/
 ├── config/                 # Django settings
@@ -105,10 +108,64 @@ NaufalHaniefMafazaFastPrint/
 
 ## API FastPrint
 
-### Autentikasi
-API menggunakan autentikasi berbasis waktu server:
-- **Username**: `tesprogrammerDDMMYYCHH` (berubah setiap jam)
-- **Password**: MD5 hash dari `bisacoding-DD-MM-YY`
+### Cara Kerja Autentikasi API
+API FastPrint menggunakan sistem autentikasi dinamis berbasis waktu server yang berubah setiap jam.
+
+#### 1. Mendapatkan Username dan Password
+
+**Username Format**: `tesprogrammerDDMMYYCHH`
+- `DD`: Tanggal (2 digit dengan zero padding)
+- `MM`: Bulan (2 digit dengan zero padding) 
+- `YY`: Tahun (2 digit terakhir)
+- `C`: Karakter literal 'C'
+- `HH`: Jam + 7 (dengan handling overflow 24 jam)
+
+**Password Format**: MD5 hash dari `bisacoding-DD-MM-YY`
+- `DD`: Tanggal (2 digit dengan zero padding)
+- `MM`: Bulan (2 digit dengan zero padding)
+- `YY`: Tahun (2 digit terakhir)
+
+#### 2. Algoritma Fetch API
+
+```python
+def fetch_data():
+    # Step 1: Dapatkan waktu server dari response headers
+    initial_response = session.get(URL)
+    expected_username = initial_response.headers.get('X-Credentials-Username', '').split(' ')[0]
+    
+    # Step 2: Extract komponen tanggal dari username yang diharapkan
+    day_str = expected_username[13:15]    # Posisi 13-14
+    month_str = expected_username[15:17]  # Posisi 15-16
+    year_str = expected_username[17:19]   # Posisi 17-18
+    
+    # Step 3: Generate credentials
+    username = expected_username  # Langsung ambil dari header
+    raw_password = f"bisacoding-{day_str}-{month_str}-{year_str}"
+    password_md5 = hashlib.md5(raw_password.encode()).hexdigest()
+    
+    # Step 4: Kirim POST request dengan form data
+    response = session.post(URL, data={
+        "username": username,
+        "password": password_md5
+    })
+```
+
+#### 3. Contoh Kredensial
+
+**Tanggal Server**: 5 Februari 2026, Jam 10:00 GMT
+- **Username**: `tesprogrammer050226C17` 
+  - `05`: Tanggal 5
+  - `02`: Bulan Februari
+  - `26`: Tahun 2026
+  - `C17`: Jam 10 + 7 = 17
+- **Raw Password**: `bisacoding-05-02-26`
+- **MD5 Password**: `4a8b2c3d1e5f6789...` (hasil MD5 hash)
+
+#### 4. Mengapa Menggunakan Server Time
+- API menggunakan waktu server, bukan waktu lokal client
+- Kredensial berubah setiap jam berdasarkan waktu server
+- Script otomatis mengambil username yang benar dari response header `X-Credentials-Username`
+- Menghindari masalah timezone dan sinkronisasi waktu
 
 ### Endpoint
 - **URL**: `https://recruitment.fastprint.co.id/tes/api_tes_programmer`
@@ -185,41 +242,3 @@ Testing koneksi database dan struktur tabel:
 python test_db.py
 ```
 
-## Dependencies
-```
-Django>=5.2.0
-mysqlclient>=2.1.0
-python-dotenv>=1.0.0
-requests>=2.32.0
-```
-
-## Troubleshooting
-
-### Error: Table doesn't exist
-```bash
-python manage.py makemigrations products
-python manage.py migrate
-```
-
-### Error: MySQL connection
-- Periksa kredensial di file `.env`
-- Pastikan Railway MySQL service aktif
-- Gunakan host eksternal, bukan `mysql.railway.internal`
-
-### Error: API authentication
-- API menggunakan waktu server, bukan waktu lokal
-- Username dan password berubah setiap jam
-- Script otomatis mengambil format dari response headers
-
-## Best Practices
-1. **Database**: Menggunakan foreign key constraints
-2. **Security**: Environment variables untuk kredensial
-3. **Validation**: Server-side dan client-side validation
-4. **UX**: Konfirmasi untuk aksi destructive
-5. **Code**: Separation of concerns (models, views, templates)
-
-## Kontributor
-- Naufal Hanief Mafaza
-
-## Lisensi
-MIT License
